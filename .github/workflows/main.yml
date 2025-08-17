@@ -141,11 +141,11 @@ jobs:
         
           echo "Deregistering OLD Task Definition"
         
-          OLD_REVISIONS=$(aws ecs list-task-definitions --services $SERVICE_NAME --family-prefix $TASK_NAME --status ACTIVE --sort DESC --query 'taskDefinitionArns[1:]' --output text)
+          OLD_REVISIONS=$(aws ecs list-task-definitions --family-prefix $TASK_NAME --status ACTIVE --sort DESC --query 'taskDefinitionArns[1:]' --output text)
 
           for TD_ARN in $OLD_REVISIONS; do
             echo "Deregistering $TD_ARN"
-            aws ecs deregister-task-definition --services $SERVICE_NAME --task-definition $TD_ARN
+            aws ecs deregister-task-definition --task-definition $TD_ARN
           done
         
           echo "Stop Existing Service Task or Creating New Service"
@@ -184,11 +184,11 @@ jobs:
         
           echo "Deregistering OLD Task Definition"
         
-          OLD_REVISIONS=$(aws ecs list-task-definitions --services $SERVICE_NAME --family-prefix $TASK_NAME --status ACTIVE --sort DESC --query 'taskDefinitionArns[1:]' --output text)
+          OLD_REVISIONS=$(aws ecs list-task-definitions --family-prefix $TASK_NAME --status ACTIVE --sort DESC --query 'taskDefinitionArns[1:]' --output text)
 
           for TD_ARN in $OLD_REVISIONS; do
             echo "Deregistering $TD_ARN"
-            aws ecs deregister-task-definition --services $SERVICE_NAME --task-definition $TD_ARN
+            aws ecs deregister-task-definition --task-definition $TD_ARN
           done
         
           echo "Stop Existing Service Task or Creating New Service"
@@ -227,11 +227,11 @@ jobs:
         
           echo "Deregistering OLD Task Definition"
         
-          OLD_REVISIONS=$(aws ecs list-task-definitions --services $SERVICE_NAME --family-prefix $TASK_NAME --status ACTIVE --sort DESC --query 'taskDefinitionArns[1:]' --output text)
+          OLD_REVISIONS=$(aws ecs list-task-definitions --family-prefix $TASK_NAME --status ACTIVE --sort DESC --query 'taskDefinitionArns[1:]' --output text)
 
           for TD_ARN in $OLD_REVISIONS; do
             echo "Deregistering $TD_ARN"
-            aws ecs deregister-task-definition --services $SERVICE_NAME --task-definition $TD_ARN
+            aws ecs deregister-task-definition --task-definition $TD_ARN
           done
         
           echo "Stop Existing Service Task or Creating New Service"
