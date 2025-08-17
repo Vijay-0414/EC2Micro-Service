@@ -1,4 +1,11 @@
 FROM openjdk:17-jdk
+
 ARG JAR_FILE=target/*.jar
-COPY ${JAR_FILE} app.jar
-ENTRYPOINT ["java", "-jar", "/app.jar"]
+
+WORKDIR /app
+
+COPY ${JAR_FILE} service1.jar
+
+EXPOSE 8080
+
+ENTRYPOINT ["java", "-jar", "/service1.jar"]
