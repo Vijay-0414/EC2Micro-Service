@@ -73,10 +73,10 @@ jobs:
     - name: Build and Push Docker Images
       run: |  
 
-        if [ "${{ inputs.deploy_service1 }}" = "true" ]; then
+        if [ "${{ inputs.deploy_service1 }}" == "true" ]; then
           docker build -t ${{ secrets.ECR_REGISTRY }}/service_one:${{ env.COMMIT_SHORT_SHA }} service-1
           docker push ${{ secrets.ECR_REGISTRY }}/service_one:${{ env.COMMIT_SHORT_SHA }}
-          docker tag ${{ secrets.ECR_REGISTRY }}/service_one:${{ env.COMMIT_SHORT_SHA }} ${{ secrets.ECR_REGISTRY }}/service-one:latest
+          docker tag ${{ secrets.ECR_REGISTRY }}/service_one:${{ env.COMMIT_SHORT_SHA }} ${{ secrets.ECR_REGISTRY }}/service_one:latest
           docker push ${{ secrets.ECR_REGISTRY }}/service_one:latest
         fi
 
