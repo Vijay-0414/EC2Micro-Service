@@ -11,8 +11,8 @@
       "image": "REPLACE_ME",
       "portMappings": [
         {
-          "containerPort": 8080,
-          "hostPort": 8080
+          "containerPort": 8081,
+          "hostPort": 8081
         }
       ],
       "essential": true
