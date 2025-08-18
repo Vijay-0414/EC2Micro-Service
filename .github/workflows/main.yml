@@ -115,7 +115,7 @@ jobs:
           aws ec2 run-instances \
             --image-id $AMI_ID \
             --count 1 \
-            --instance-type t3.micro \
+            --instance-type t3.medium \
             --iam-instance-profile Name=ecsInstanceRole \
             --key-name my-key \
             --security-group-ids sg-0abb4251606ddb157 \
@@ -129,7 +129,7 @@ jobs:
 
     - name: Task Creation
       run: |
-        if [ "${{ inputs.service1 }}" = "true" ]; then
+        if [ "${{ inputs.service1 }}" == "true" ]; then
         
           SERVICE_NAME=service1-service
           TASK_NAME=service1-task
@@ -172,7 +172,7 @@ jobs:
           aws ecs update-service --cluster $CLUSTER_NAME --service $SERVICE_NAME --task-definition $TASK_DEF_ARN --force-new-deployment
         fi
 
-        if [ "${{ inputs.service2 }}" = "true" ]; then
+        if [ "${{ inputs.service2 }}" == "true" ]; then
         
           SERVICE_NAME=service2-service
           TASK_NAME=service2-task
@@ -215,7 +215,7 @@ jobs:
           aws ecs update-service --cluster $CLUSTER_NAME --service $SERVICE_NAME --task-definition $TASK_DEF_ARN --force-new-deployment
         fi
 
-        if [ "${{ inputs.deploy_service3 }}" = "true" ]; then
+        if [ "${{ inputs.deploy_service3 }}" == "true" ]; then
         
           SERVICE_NAME=service3-service
           TASK_NAME=service3-task
