@@ -174,3 +174,27 @@ jobs:
           deploy_service third-service service3-task-family ${{ secrets.ECR_REGISTRY }}/service_three:${{ env.COMMIT_SHORT_SHA }} service3-task-def.json
         fi
 
+    - name: Cleanup old containers in EC2
+      run: |
+        CONTAINER_INSTANCE_ARN=$(aws ecs list-container-instances --cluster $CLUSTER_NAME --query "containerInstanceArns[0]" --output text --region ${{ secrets.AWS_REGION }})
+
+        if [ "$CONTAINER_INSTANCE_ARN" != "None" ] && [ -n "$CONTAINER_INSTANCE_ARN" ]; then
+          INSTANCE_ID=$(aws ecs describe-container-instances \
+            --cluster $CLUSTER_NAME \
+            --container-instances $CONTAINER_INSTANCE_ARN \
+            --query "containerInstances[0].ec2InstanceId" \
+            --output text --region ${{ secrets.AWS_REGION }})
+
+        PUBLIC_IP=$(aws ec2 describe-instances --instance-ids $INSTANCE_ID --query "Reservations[0].Instances[0].PublicIpAddress" --output text --region ${{ secrets.AWS_REGION }})
+
+        echo "${{ secrets.EC2_KEY }}" > my-key.pem
+        chmod 600 my-key.pem
+
+        ssh -o StrictHostKeyChecking=no -i my-key.pem ec2-user@$PUBLIC_IP << 'EOF'
+          docker container prune -f
+          docker image prune -af
+          docker volume prune -f
+        EOF
+        else
+          echo "No ECS container instances found in cluster $CLUSTER_NAME. Skipping cleanup."
+        fi
