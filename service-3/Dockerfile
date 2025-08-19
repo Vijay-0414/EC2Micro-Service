@@ -8,4 +8,4 @@ COPY ${JAR_FILE} service3.jar
 
 EXPOSE 8082
 
-ENTRYPOINT ["java", "-jar", "/service3.jar"]
+ENTRYPOINT ["java", "-jar", "service3.jar"]
