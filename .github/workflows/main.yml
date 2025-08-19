@@ -165,12 +165,12 @@ jobs:
         }
 
         if [ "${{ inputs.deploy_service1 }}" == "true" ]; then
-          deploy_service first-service first-task ${{ secrets.ECR_REGISTRY }}/service_one:${{ env.COMMIT_SHORT_SHA }} service1-task-def.json
+          deploy_service first-service service1-task-family ${{ secrets.ECR_REGISTRY }}/service_one:${{ env.COMMIT_SHORT_SHA }} service1-task-def.json
         fi
         if [ "${{ inputs.deploy_service2 }}" == "true" ]; then
-          deploy_service second-service second-task ${{ secrets.ECR_REGISTRY }}/service_two:${{ env.COMMIT_SHORT_SHA }} service2-task-def.json
+          deploy_service second-service service2-task-family ${{ secrets.ECR_REGISTRY }}/service_two:${{ env.COMMIT_SHORT_SHA }} service2-task-def.json
         fi
         if [ "${{ inputs.deploy_service3 }}" == "true" ]; then
-          deploy_service third-service third-task ${{ secrets.ECR_REGISTRY }}/service_three:${{ env.COMMIT_SHORT_SHA }} service3-task-def.json
+          deploy_service third-service service3-task-family ${{ secrets.ECR_REGISTRY }}/service_three:${{ env.COMMIT_SHORT_SHA }} service3-task-def.json
         fi
 
