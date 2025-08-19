@@ -64,37 +64,32 @@ jobs:
         aws-secret-access-key: ${{secrets.AWS_SECRET_ACCESS_KEY}}
         aws-region: ${{secrets.AWS_REGION}}
 
+
     - name: Login to Amazon ECR
       id: login-ecr
-      run: |
-        aws ecr get-login-password --region ${{ secrets.AWS_REGION }} | \
-          docker login --username AWS --password-stdin ${{ secrets.ECR_REGISTRY }}
+      uses: aws-actions/amazon-ecr-login@v2
           
     - name: Build and Push Docker Images
       run: |  
+        build_push() {
+          local SERVICE=$1
+          local SERVICE_PATH=$2
+          docker build -t ${{ secrets.ECR_REGISTRY }}/$SERVICE:${{ env.COMMIT_SHORT_SHA }} $SERVICE_PATH
+          docker push ${{ secrets.ECR_REGISTRY }}/$SERVICE:${{ env.COMMIT_SHORT_SHA }}
+          docker tag ${{ secrets.ECR_REGISTRY }}/$SERVICE:${{ env.COMMIT_SHORT_SHA }} ${{ secrets.ECR_REGISTRY }}/$SERVICE:latest
+          docker push ${{ secrets.ECR_REGISTRY }}/$SERVICE:latest        
+        }
 
-        if [ "${{ inputs.deploy_service1 }}" == "true" ]; then
-          docker build -t ${{ secrets.ECR_REGISTRY }}/service_one:${{ env.COMMIT_SHORT_SHA }} service-1
-          docker push ${{ secrets.ECR_REGISTRY }}/service_one:${{ env.COMMIT_SHORT_SHA }}
-          docker tag ${{ secrets.ECR_REGISTRY }}/service_one:${{ env.COMMIT_SHORT_SHA }} ${{ secrets.ECR_REGISTRY }}/service_one:latest
-          docker push ${{ secrets.ECR_REGISTRY }}/service_one:latest
+        if [ "${{ input.deploy_service1 }}" == "true" ]; then
+          build_push service_one service-1
         fi
+        if [ "${{ input.deploy_service2 }}" == "true" ]; then
+          build_push service_two service-2
+        fi
+        if [ "${{ input.deploy_service3 }}" == "true" ]; then
+          build_push service_three service-3
+        fi        
 
-
-        if [ "${{inputs.deploy_service2}}" == "true" ]; then
-          docker build -t ${{ secrets.ECR_REGISTRY }}/service_two:${{ env.COMMIT_SHORT_SHA }} service-2
-          docker push ${{ secrets.ECR_REGISTRY }}/service_two:${{ env.COMMIT_SHORT_SHA }}
-          docker tag ${{ secrets.ECR_REGISTRY }}/service_two:${{ env.COMMIT_SHORT_SHA }} ${{ secrets.ECR_REGISTRY }}/service_two:latest
-          docker push ${{ secrets.ECR_REGISTRY }}/service_two:latest
-        fi
-        if [ "${{inputs.deploy_service3}}" == "true" ]; then
-          docker build -t ${{ secrets.ECR_REGISTRY }}/service_three:${COMMIT_SHORT_SHA} service-3
-          docker push ${{ secrets.ECR_REGISTRY }}/service_three:${COMMIT_SHORT_SHA}
-          docker tag ${{ secrets.ECR_REGISTRY }}/service_three:${COMMIT_SHORT_SHA} ${{ secrets.ECR_REGISTRY }}/service_three:latest
-          docker push ${{ secrets.ECR_REGISTRY }}/service_three:latest
-          
-        fi
-        
     - name: Create ECS cluster if not exists
       run: |
         CLUSTER_EXISTS=$(aws ecs describe-clusters --clusters $CLUSTER_NAME --region ${{secrets.AWS_REGION}} --query "clusters[0].status" --output text 2>/dev/null || echo "MISSING")
@@ -127,29 +122,26 @@ jobs:
           echo "EC2 container instances already running."
         fi
 
-    - name: Task Creation
+    - name: Deploy Services
       run: |
-        if [ "${{ inputs.service1 }}" == "true" ]; then
-        
-          SERVICE_NAME=service1-service
-          TASK_NAME=service1-task
-        
-          echo "Update and Register Task Definition"
-          
-          sed "s|REPLACE_ME|${{ secrets.ECR_REGISTRY }}/service_one:${{ env.COMMIT_SHORT_SHA }}|g" ecs-task-definitions/service1-task-def.json > final-task-def.json
-          TASK_DEF_ARN=$(aws ecs register-task-definition --cli-input-json file://final-task-def.json --query 'taskDefinition.taskDefinitionArn' --output text)
-        
-          echo "Deregistering OLD Task Definition"
-        
-          OLD_REVISIONS=$(aws ecs list-task-definitions --family-prefix $TASK_NAME --status ACTIVE --sort DESC --query 'taskDefinitionArns[1:]' --output text)
+        deploy_service() {
+          local SERVICE_NAME=$1
+          local TASK_NAME=$2
+          local IMAGE=$3
+          local DEF_FILE=$4
 
+          echo "Deploying $SERVICE_NAME using image $IMAGE"
+
+          sed "s|REPLACE_ME|$IMAGE|g" ecs-task-definitions/$DEF_FILE > final-task-def.json
+          TASK_DEF_ARN=$(aws ecs register-task-definition --cli-input-json file://final-task-def.json \
+            --query 'taskDefinition.taskDefinitionArn' --output text)
+
+          # Keep only last 3 revisions
+          OLD_REVISIONS=$(aws ecs list-task-definitions --family-prefix $TASK_NAME --status ACTIVE --sort DESC --query 'taskDefinitionArns[1:]' --output text)
           for TD_ARN in $OLD_REVISIONS; do
-            echo "Deregistering $TD_ARN"
             aws ecs deregister-task-definition --task-definition $TD_ARN
           done
-        
-          echo "Stop Existing Service Task or Creating New Service"
-        
+
           SERVICE_STATUS=$(aws ecs describe-services --cluster $CLUSTER_NAME --services $SERVICE_NAME --query "services[0].status" --output text 2>/dev/null || echo "MISSING")
 
           if [ "$SERVICE_STATUS" == "ACTIVE" ]; then
@@ -158,7 +150,7 @@ jobs:
 
             if [ "$TASK_ARN" != "None" ] && [ "$TASK_ARN" != "null" ]; then
               echo "Stopping task: $TASK_ARN"
-              aws ecs stop-task --cluster $CLUSTER_NAME --services $SERVICE_NAME --task $TASK_ARN
+              aws ecs stop-task --cluster $CLUSTER_NAME --task $TASK_ARN
             else
               echo "No running tasks found for service."
             fi
@@ -166,94 +158,19 @@ jobs:
             echo "Creating ECS service..."
             aws ecs create-service --cluster $CLUSTER_NAME --service-name $SERVICE_NAME --task-definition $TASK_DEF_ARN --desired-count 1 --launch-type EC2 --deployment-configuration maximumPercent=200,minimumHealthyPercent=50
           fi
-        
-          echo "Updating the Service"
-        
+
+          echo "Updating Service"
           aws ecs update-service --cluster $CLUSTER_NAME --service $SERVICE_NAME --task-definition $TASK_DEF_ARN --force-new-deployment
+
+        }
+
+        if [ "${{ input.deploy_service1 }}" == "true" ]; then
+          deploy_service first-service first-task ${{ secrets.ECR_REGISTRY }}/service_one:${{ env.COMMIT_SHORT_SHA }} service1-task-def.json
+        fi
+        if [ "${{ input.deploy_service2 }}" == "true" ]; then
+          deploy_service second-service second-task ${{ secrets.ECR_REGISTRY }}/service_two:${{ env.COMMIT_SHORT_SHA }} service2-task-def.json
+        fi
+        if [ "${{ input.deploy_service3 }}" == "true" ]; then
+          deploy_service third-service third-task ${{ secrets.ECR_REGISTRY }}/service_three:${{ env.COMMIT_SHORT_SHA }} service3-task-def.json
         fi
 
-        if [ "${{ inputs.service2 }}" == "true" ]; then
-        
-          SERVICE_NAME=service2-service
-          TASK_NAME=service2-task
-        
-          echo "Update and Register Task Definition"
-          
-          sed "s|REPLACE_ME|${{ secrets.ECR_REGISTRY }}/service_two:${{ env.COMMIT_SHORT_SHA }}|g" ecs-task-definitions/service2-task-def.json > final-task-def.json
-          TASK_DEF_ARN=$(aws ecs register-task-definition --cli-input-json file://final-task-def.json --query 'taskDefinition.taskDefinitionArn' --output text)
-        
-          echo "Deregistering OLD Task Definition"
-        
-          OLD_REVISIONS=$(aws ecs list-task-definitions --family-prefix $TASK_NAME --status ACTIVE --sort DESC --query 'taskDefinitionArns[1:]' --output text)
-
-          for TD_ARN in $OLD_REVISIONS; do
-            echo "Deregistering $TD_ARN"
-            aws ecs deregister-task-definition --task-definition $TD_ARN
-          done
-        
-          echo "Stop Existing Service Task or Creating New Service"
-        
-          SERVICE_STATUS=$(aws ecs describe-services --cluster $CLUSTER_NAME --services $SERVICE_NAME --query "services[0].status" --output text 2>/dev/null || echo "MISSING")
-
-          if [ "$SERVICE_STATUS" == "ACTIVE" ]; then
-            echo "Service exists. Checking for running tasks..."
-            TASK_ARN=$(aws ecs list-tasks --cluster $CLUSTER_NAME --service-name $SERVICE_NAME --query 'taskArns[0]' --output text)
-
-            if [ "$TASK_ARN" != "None" ] && [ "$TASK_ARN" != "null" ]; then
-              echo "Stopping task: $TASK_ARN"
-              aws ecs stop-task --cluster $CLUSTER_NAME --services $SERVICE_NAME --task $TASK_ARN
-            else
-              echo "No running tasks found for service."
-            fi
-          else
-            echo "Creating ECS service..."
-            aws ecs create-service --cluster $CLUSTER_NAME --service-name $SERVICE_NAME --task-definition $TASK_DEF_ARN --desired-count 1 --launch-type EC2 --deployment-configuration maximumPercent=200,minimumHealthyPercent=50
-          fi
-        
-          echo "Updating the Service"
-        
-          aws ecs update-service --cluster $CLUSTER_NAME --service $SERVICE_NAME --task-definition $TASK_DEF_ARN --force-new-deployment
-        fi
-
-        if [ "${{ inputs.deploy_service3 }}" == "true" ]; then
-        
-          SERVICE_NAME=service3-service
-          TASK_NAME=service3-task
-        
-          echo "Update and Register Task Definition"
-          
-          sed "s|REPLACE_ME|${{ secrets.ECR_REGISTRY }}/service_three:${{ env.COMMIT_SHORT_SHA }}|g" ecs-task-definitions/service3-task-def.json > final-task-def.json
-          TASK_DEF_ARN=$(aws ecs register-task-definition --cli-input-json file://final-task-def.json --query 'taskDefinition.taskDefinitionArn' --output text)
-        
-          echo "Deregistering OLD Task Definition"
-        
-          OLD_REVISIONS=$(aws ecs list-task-definitions --family-prefix $TASK_NAME --status ACTIVE --sort DESC --query 'taskDefinitionArns[1:]' --output text)
-
-          for TD_ARN in $OLD_REVISIONS; do
-            echo "Deregistering $TD_ARN"
-            aws ecs deregister-task-definition --task-definition $TD_ARN
-          done
-        
-          echo "Stop Existing Service Task or Creating New Service"
-        
-          SERVICE_STATUS=$(aws ecs describe-services --cluster $CLUSTER_NAME --services $SERVICE_NAME --query "services[0].status" --output text 2>/dev/null || echo "MISSING")
-
-          if [ "$SERVICE_STATUS" == "ACTIVE" ]; then
-            echo "Service exists. Checking for running tasks..."
-            TASK_ARN=$(aws ecs list-tasks --cluster $CLUSTER_NAME --service-name $SERVICE_NAME --query 'taskArns[0]' --output text)
-
-            if [ "$TASK_ARN" != "None" ] && [ "$TASK_ARN" != "null" ]; then
-              echo "Stopping task: $TASK_ARN"
-              aws ecs stop-task --cluster $CLUSTER_NAME --services $SERVICE_NAME --task $TASK_ARN
-            else
-              echo "No running tasks found for service."
-            fi
-          else
-            echo "Creating ECS service..."
-            aws ecs create-service --cluster $CLUSTER_NAME --service-name $SERVICE_NAME --task-definition $TASK_DEF_ARN --desired-count 1 --launch-type EC2 --deployment-configuration maximumPercent=200,minimumHealthyPercent=50
-          fi
-        
-          echo "Updating the Service"
-        
-          aws ecs update-service --cluster $CLUSTER_NAME --service $SERVICE_NAME --task-definition $TASK_DEF_ARN --force-new-deployment
-        fi
