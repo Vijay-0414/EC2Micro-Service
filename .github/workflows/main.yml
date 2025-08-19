@@ -80,13 +80,13 @@ jobs:
           docker push ${{ secrets.ECR_REGISTRY }}/$SERVICE:latest        
         }
 
-        if [ "${{ input.deploy_service1 }}" == "true" ]; then
+        if [ "${{ inputs.deploy_service1 }}" == "true" ]; then
           build_push service_one service-1
         fi
-        if [ "${{ input.deploy_service2 }}" == "true" ]; then
+        if [ "${{ inputs.deploy_service2 }}" == "true" ]; then
           build_push service_two service-2
         fi
-        if [ "${{ input.deploy_service3 }}" == "true" ]; then
+        if [ "${{ inputs.deploy_service3 }}" == "true" ]; then
           build_push service_three service-3
         fi        
 
@@ -164,13 +164,13 @@ jobs:
 
         }
 
-        if [ "${{ input.deploy_service1 }}" == "true" ]; then
+        if [ "${{ inputs.deploy_service1 }}" == "true" ]; then
           deploy_service first-service first-task ${{ secrets.ECR_REGISTRY }}/service_one:${{ env.COMMIT_SHORT_SHA }} service1-task-def.json
         fi
-        if [ "${{ input.deploy_service2 }}" == "true" ]; then
+        if [ "${{ inputs.deploy_service2 }}" == "true" ]; then
           deploy_service second-service second-task ${{ secrets.ECR_REGISTRY }}/service_two:${{ env.COMMIT_SHORT_SHA }} service2-task-def.json
         fi
-        if [ "${{ input.deploy_service3 }}" == "true" ]; then
+        if [ "${{ inputs.deploy_service3 }}" == "true" ]; then
           deploy_service third-service third-task ${{ secrets.ECR_REGISTRY }}/service_three:${{ env.COMMIT_SHORT_SHA }} service3-task-def.json
         fi
 
