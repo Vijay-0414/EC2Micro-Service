@@ -20,6 +20,8 @@ jobs:
 
     env:
       CLUSTER_NAME: EC2_Micro_Cluster
+      SUBNETS: subnet-02cad20bf83afac11,subnet-0a49baf0fd1f54dba 
+      SECURITY_GROUPS: sg-0abb4251606ddb157
 
     steps:
     - name: Checkout repository
@@ -135,7 +137,7 @@ jobs:
             fi
           else
             echo "Creating ECS service..."
-            aws ecs create-service --cluster $CLUSTER_NAME --service-name $SERVICE_NAME --task-definition $TASK_DEF_ARN --desired-count 1 --launch-type FARGATE --deployment-configuration maximumPercent=200,minimumHealthyPercent=50
+            aws ecs create-service --cluster $CLUSTER_NAME --service-name $SERVICE_NAME --task-definition $TASK_DEF_ARN --desired-count 1 --launch-type FARGATE --network-configuration "awsvpcConfiguration={subnets=[${SUBNETS}],securityGroups=[${SECURITY_GROUPS}],assignPublicIp=ENABLED}"
           fi
 
           echo "Updating Service"
