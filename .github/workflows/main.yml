@@ -135,7 +135,7 @@ jobs:
             fi
           else
             echo "Creating ECS service..."
-            aws ecs create-service --cluster $CLUSTER_NAME --service-name $SERVICE_NAME --task-definition $TASK_DEF_ARN --desired-count 1 --launch-type EC2 --deployment-configuration maximumPercent=200,minimumHealthyPercent=50
+            aws ecs create-service --cluster $CLUSTER_NAME --service-name $SERVICE_NAME --task-definition $TASK_DEF_ARN --desired-count 1 --launch-type FARGATE --deployment-configuration maximumPercent=200,minimumHealthyPercent=50
           fi
 
           echo "Updating Service"
