@@ -1,4 +1,4 @@
-name: Microservices Deploy using ECS with EC2
+name: Microservices Deploy using ECS with FARGATE
 
 on:
   workflow_dispatch:
@@ -101,27 +101,6 @@ jobs:
           echo "ECS cluster '$CLUSTER_NAME' already exists."
         fi
 
-    - name: Launch EC2 instances if none exist
-      run: |
-        COUNT=$(aws ecs list-container-instances --cluster $CLUSTER_NAME --region ${{secrets.AWS_REGION}} --query "length(containerInstanceArns)" --output text)
-        if [ "$COUNT" -eq 0 ]; then
-          echo "Launching EC2 container instance..."
-          AMI_ID=$(aws ssm get-parameters --names /aws/service/ecs/optimized-ami/amazon-linux-2/recommended/image_id --query "Parameters[0].Value" --output text)
-          aws ec2 run-instances \
-            --image-id $AMI_ID \
-            --count 1 \
-            --instance-type t3.medium \
-            --iam-instance-profile Name=ecsInstanceRole \
-            --key-name my-key \
-            --security-group-ids sg-0abb4251606ddb157 \
-            --subnet-id subnet-02cad20bf83afac11 \
-            --tag-specifications "ResourceType=instance,Tags=[{Key=Name,Value=EC2-Micro-Instance}]" \
-            --user-data "#!/bin/bash
-            echo ECS_CLUSTER=$CLUSTER_NAME >> /etc/ecs/ecs.config"
-        else
-          echo "EC2 container instances already running."
-        fi
-
     - name: Deploy Services
       run: |
         deploy_service() {
@@ -172,29 +151,4 @@ jobs:
         fi
         if [ "${{ inputs.deploy_service3 }}" == "true" ]; then
           deploy_service third-service service3-task-family ${{ secrets.ECR_REGISTRY }}/service_three:${{ env.COMMIT_SHORT_SHA }} service3-task-def.json
-        fi
-
-    - name: Cleanup old containers in EC2
-      run: |
-        CONTAINER_INSTANCE_ARN=$(aws ecs list-container-instances --cluster $CLUSTER_NAME --query "containerInstanceArns[0]" --output text --region ${{ secrets.AWS_REGION }})
-
-        if [ "$CONTAINER_INSTANCE_ARN" != "None" ] && [ -n "$CONTAINER_INSTANCE_ARN" ]; then
-          INSTANCE_ID=$(aws ecs describe-container-instances \
-            --cluster $CLUSTER_NAME \
-            --container-instances $CONTAINER_INSTANCE_ARN \
-            --query "containerInstances[0].ec2InstanceId" \
-            --output text --region ${{ secrets.AWS_REGION }})
-
-        PUBLIC_IP=$(aws ec2 describe-instances --instance-ids $INSTANCE_ID --query "Reservations[0].Instances[0].PublicIpAddress" --output text --region ${{ secrets.AWS_REGION }})
-
-        echo "${{ secrets.EC2_KEY }}" > my-key.pem
-        chmod 600 my-key.pem
-
-        ssh -o StrictHostKeyChecking=no -i my-key.pem ec2-user@$PUBLIC_IP << 'EOF'
-          docker container prune -f
-          docker image prune -af
-          docker volume prune -f
-        EOF
-        else
-          echo "No ECS container instances found in cluster $CLUSTER_NAME. Skipping cleanup."
         fi
