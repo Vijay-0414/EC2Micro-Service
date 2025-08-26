@@ -3,6 +3,7 @@
   "family": "service1-task-family",
   "networkMode": "awsvpc",
   "requiresCompatibilities": ["FARGATE"],
+  "executionRoleArn": "arn:aws:iam::720628977237:role/ecsTaskExecutionRole",
   "cpu": "256",
   "memory": "512",
   "containerDefinitions": [
