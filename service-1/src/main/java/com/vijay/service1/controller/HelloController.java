@@ -13,7 +13,7 @@ public class HelloController {
     }
 
     @GetMapping("/hello2")
-    public String hello() {
+    public String hello2() {
         return "SERVICE ONE... Second MAPPING...";
     }
 }
