@@ -21,10 +21,11 @@ jobs:
       CLUSTER_NAME: Fargate_Micro_Cluster
       SUBNETS: subnet-02cad20bf83afac11,subnet-0a49baf0fd1f54dba
       SECURITY_GROUPS: sg-0abb4251606ddb157
-      
-      TG_SERVICE1: arn:aws:elasticloadbalancing:ap-south-1:720628977237:targetgroup/TG-Service1/579fd7d6f7016175
-      TG_SERVICE2: arn:aws:elasticloadbalancing:ap-south-1:720628977237:targetgroup/TG-Service2/1687a64d3608dbf8
-      TG_SERVICE3: arn:aws:elasticloadbalancing:ap-south-1:720628977237:targetgroup/TG-Service3/1181026831fa0dd2
+      VPC_ID: vpc-0a46ad5e7ce944239 
+      PORT_SERVICE1: 8080
+      PORT_SERVICE2: 8081
+      PORT_SERVICE3: 8082
+    
 
     steps:
     - name: Checkout repository
@@ -106,6 +107,70 @@ jobs:
           echo "ECS cluster '$CLUSTER_NAME' already exists."
         fi
 
+    # Create ALB if not exists
+    - name: Create ALB
+      run: |
+        ALB_NAME=Fargate-Micro-ALB
+        ALB_ARN=$(aws elbv2 describe-load-balancers --names $ALB_NAME --query 'LoadBalancers[0].LoadBalancerArn' --output text 2>/dev/null || echo "MISSING")
+        if [ "$ALB_ARN" = "MISSING" ]; then
+          echo "Creating ALB..."
+          ALB_ARN=$(aws elbv2 create-load-balancer --name $ALB_NAME \
+            --subnets ${SUBNETS} --security-groups ${SECURITY_GROUPS} \
+            --scheme internet-facing --type application \
+            --query 'LoadBalancers[0].LoadBalancerArn' --output text)
+        fi
+        echo "ALB ARN: $ALB_ARN"
+        echo "ALB_ARN=$ALB_ARN" >> $GITHUB_ENV
+
+    # Create Target Groups for each service
+    - name: Create Target Groups
+      run: |
+        create_tg() {
+          TG_NAME=$1
+          TG_PORT=$2
+          TG_ARN=$(aws elbv2 describe-target-groups --names $TG_NAME --query 'TargetGroups[0].TargetGroupArn' --output text 2>/dev/null || echo "MISSING")
+          if [ "$TG_ARN" = "MISSING" ]; then
+            TG_ARN=$(aws elbv2 create-target-group --name $TG_NAME \
+              --protocol HTTP --port $TG_PORT \
+              --vpc-id ${VPC_ID} --target-type ip \
+              --query 'TargetGroups[0].TargetGroupArn' --output text)
+          fi
+          echo "$TG_NAME ARN: $TG_ARN"
+          echo "$TG_NAME=$TG_ARN" >> $GITHUB_ENV
+        }
+
+        create_tg TG_Service1 $PORT_SERVICE1
+        create_tg TG_Service2 $PORT_SERVICE2
+        create_tg TG_Service3 $PORT_SERVICE3
+
+    # Create Listener on ALB port 80 if not exists
+    - name: Create ALB Listener
+      run: |
+        LISTENER_ARN=$(aws elbv2 describe-listeners --load-balancer-arn $ALB_ARN --query 'Listeners[?Port==`80`].ListenerArn' --output text)
+        if [ -z "$LISTENER_ARN" ]; then
+          LISTENER_ARN=$(aws elbv2 create-listener --load-balancer-arn $ALB_ARN \
+            --protocol HTTP --port 80 \
+            --default-actions Type=forward,TargetGroupArn=$TG_Service1 \
+            --query 'Listeners[0].ListenerArn' --output text)
+        fi
+        echo "LISTENER_ARN=$LISTENER_ARN" >> $GITHUB_ENV
+
+    # Add path-based rules for services
+    - name: Add ALB Listener Rules
+      run: |
+        add_rule() {
+          PATH_PATTERN=$1
+          TG_ARN=$2
+          PRIORITY=$3
+          aws elbv2 create-rule --listener-arn ${{ env.LISTENER_ARN }} \
+            --priority $PRIORITY \
+            --conditions Field=path-pattern,Values="$PATH_PATTERN" \
+            --actions Type=forward,TargetGroupArn=$TG_ARN
+        }
+        add_rule "/service1/*" ${{ env.TG_Service1 }} 10
+        add_rule "/service2/*" ${{ env.TG_Service2 }} 20
+        add_rule "/service3/*" ${{ env.TG_Service3 }} 30
+          
     - name: Deploy Services
       run: |
         deploy_service() {
@@ -151,11 +216,11 @@ jobs:
         }
 
         if [ "${{ inputs.deploy_service1 }}" == "true" ]; then
-          deploy_service first-service service1-task-family ${{ secrets.ECR_REGISTRY }}/service_one:${{ env.COMMIT_SHORT_SHA }} service1-task-def.json $TG_SERVICE1 service1-container 8080
+          deploy_service first-service service1-task-family ${{ secrets.ECR_REGISTRY }}/service_one:${{ env.COMMIT_SHORT_SHA }} service1-task-def.json ${{ env.TG_Service1 }} service1-container $PORT_SERVICE1
         fi
         if [ "${{ inputs.deploy_service2 }}" == "true" ]; then
-          deploy_service second-service service2-task-family ${{ secrets.ECR_REGISTRY }}/service_two:${{ env.COMMIT_SHORT_SHA }} service2-task-def.json $TG_SERVICE2 service2-container 8081
+          deploy_service second-service service2-task-family ${{ secrets.ECR_REGISTRY }}/service_two:${{ env.COMMIT_SHORT_SHA }} service2-task-def.json ${{ env.TG_Service2 }} service2-container $PORT_SERVICE2
         fi
         if [ "${{ inputs.deploy_service3 }}" == "true" ]; then
-          deploy_service third-service service3-task-family ${{ secrets.ECR_REGISTRY }}/service_three:${{ env.COMMIT_SHORT_SHA }} service3-task-def.json $TG_SERVICE3 service3-container 8082
+          deploy_service third-service service3-task-family ${{ secrets.ECR_REGISTRY }}/service_three:${{ env.COMMIT_SHORT_SHA }} service3-task-def.json ${{ env.TG_Service3 }} service3-container $PORT_SERVICE3
         fi
