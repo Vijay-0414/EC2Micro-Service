@@ -1,27 +1,30 @@
-name: Microservices Deploy using ECS with FARGATE
+name: Microservices Deploy using ECS with FARGATE + ALB
 
 on:
   workflow_dispatch:
     inputs:
-      deploy_service1:  #service1
+      deploy_service1:
         type: boolean
         default: false
-      deploy_service2:  #service2
+      deploy_service2:
         type: boolean
         default: false
-      deploy_service3:  #service3
+      deploy_service3:
         type: boolean
         default: false
-
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
 
     env:
-      CLUSTER_NAME: EC2_Micro_Cluster
-      SUBNETS: subnet-02cad20bf83afac11,subnet-0a49baf0fd1f54dba 
+      CLUSTER_NAME: Fargate_Micro_Cluster
+      SUBNETS: subnet-02cad20bf83afac11,subnet-0a49baf0fd1f54dba
       SECURITY_GROUPS: sg-0abb4251606ddb157
+      
+      TG_SERVICE1: arn:aws:elasticloadbalancing:ap-south-1:720628977237:targetgroup/TG-Service1/579fd7d6f7016175
+      TG_SERVICE2: arn:aws:elasticloadbalancing:ap-south-1:720628977237:targetgroup/TG-Service2/1687a64d3608dbf8
+      TG_SERVICE3: arn:aws:elasticloadbalancing:ap-south-1:720628977237:targetgroup/TG-Service3/1181026831fa0dd2
 
     steps:
     - name: Checkout repository
@@ -39,33 +42,12 @@ jobs:
         calculatedSha=$(git rev-parse --short ${{ github.sha }})
         echo "COMMIT_SHORT_SHA=$calculatedSha" >> $GITHUB_ENV
 
-    - name: Github Workspace
-      run: echo ${{ github.workspace }}
-
-    - name: Confirm git commit SHA output
-      run: echo ${{ env.COMMIT_SHORT_SHA }}
-
-    # TEST + BUILD ONLY SELECTED SERVICES
-    - name: Test & build selected services
-      run: |
-        if [ "${{ inputs.deploy_service1 }}" == "true" ]; then
-          cd service-1 && mvn test && mvn package -DskipTests && cd ..
-        fi
-        if [ "${{ inputs.deploy_service2 }}" == "true" ]; then
-          cd service-2 && mvn test && mvn package -DskipTests && cd ..
-        fi
-        if [ "${{ inputs.deploy_service3 }}" == "true" ]; then
-          cd service-3 && mvn test && mvn package -DskipTests && cd ..
-        fi
-
-
     - name: Configure AWS Credentials
       uses: aws-actions/configure-aws-credentials@v2
       with:
         aws-access-key-id: ${{secrets.AWS_ACCESS_KEY}}
         aws-secret-access-key: ${{secrets.AWS_SECRET_ACCESS_KEY}}
         aws-region: ${{secrets.AWS_REGION}}
-
 
     - name: Login to Amazon ECR
       id: login-ecr
@@ -90,7 +72,7 @@ jobs:
         fi
         if [ "${{ inputs.deploy_service3 }}" == "true" ]; then
           build_push service_three service-3
-        fi        
+        fi
 
     - name: Create ECS cluster if not exists
       run: |
@@ -110,6 +92,9 @@ jobs:
           local TASK_NAME=$2
           local IMAGE=$3
           local DEF_FILE=$4
+          local TG_ARN=$5
+          local CONTAINER_NAME=$6
+          local CONTAINER_PORT=$7
 
           echo "Deploying $SERVICE_NAME using image $IMAGE"
 
@@ -117,40 +102,34 @@ jobs:
           TASK_DEF_ARN=$(aws ecs register-task-definition --cli-input-json file://final-task-def.json \
             --query 'taskDefinition.taskDefinitionArn' --output text)
 
-          # Keep only last 3 revisions
-          OLD_REVISIONS=$(aws ecs list-task-definitions --family-prefix $TASK_NAME --status ACTIVE --sort DESC --query 'taskDefinitionArns[1:]' --output text)
-          for TD_ARN in $OLD_REVISIONS; do
-            aws ecs deregister-task-definition --task-definition $TD_ARN
-          done
-
           SERVICE_STATUS=$(aws ecs describe-services --cluster $CLUSTER_NAME --services $SERVICE_NAME --query "services[0].status" --output text 2>/dev/null || echo "MISSING")
 
-          if [ "$SERVICE_STATUS" == "ACTIVE" ]; then
-            echo "Service exists. Checking for running tasks..."
-            TASK_ARN=$(aws ecs list-tasks --cluster $CLUSTER_NAME --service-name $SERVICE_NAME --query 'taskArns[0]' --output text)
-
-            if [ "$TASK_ARN" != "None" ] && [ "$TASK_ARN" != "null" ]; then
-              echo "Stopping task: $TASK_ARN"
-              aws ecs stop-task --cluster $CLUSTER_NAME --task $TASK_ARN
-            else
-              echo "No running tasks found for service."
-            fi
-          else
+          if [ "$SERVICE_STATUS" == "MISSING" ] || [ "$SERVICE_STATUS" == "None" ]; then
             echo "Creating ECS service..."
-            aws ecs create-service --cluster $CLUSTER_NAME --service-name $SERVICE_NAME --task-definition $TASK_DEF_ARN --desired-count 1 --launch-type FARGATE --network-configuration "awsvpcConfiguration={subnets=[${SUBNETS}],securityGroups=[${SECURITY_GROUPS}],assignPublicIp=ENABLED}"
+            aws ecs create-service \
+              --cluster $CLUSTER_NAME \
+              --service-name $SERVICE_NAME \
+              --task-definition $TASK_DEF_ARN \
+              --desired-count 1 \
+              --launch-type FARGATE \
+              --network-configuration "awsvpcConfiguration={subnets=[${SUBNETS}],securityGroups=[${SECURITY_GROUPS}],assignPublicIp=ENABLED}" \
+              --load-balancers "targetGroupArn=$TG_ARN,containerName=$CONTAINER_NAME,containerPort=$CONTAINER_PORT"
+          else
+            echo "Updating ECS service..."
+            aws ecs update-service \
+              --cluster $CLUSTER_NAME \
+              --service $SERVICE_NAME \
+              --task-definition $TASK_DEF_ARN \
+              --force-new-deployment
           fi
-
-          echo "Updating Service"
-          aws ecs update-service --cluster $CLUSTER_NAME --service $SERVICE_NAME --task-definition $TASK_DEF_ARN --force-new-deployment
-
         }
 
         if [ "${{ inputs.deploy_service1 }}" == "true" ]; then
-          deploy_service first-service service1-task-family ${{ secrets.ECR_REGISTRY }}/service_one:${{ env.COMMIT_SHORT_SHA }} service1-task-def.json
+          deploy_service first-service service1-task-family ${{ secrets.ECR_REGISTRY }}/service_one:${{ env.COMMIT_SHORT_SHA }} service1-task-def.json $TG_SERVICE1 service1-container 8080
         fi
         if [ "${{ inputs.deploy_service2 }}" == "true" ]; then
-          deploy_service second-service service2-task-family ${{ secrets.ECR_REGISTRY }}/service_two:${{ env.COMMIT_SHORT_SHA }} service2-task-def.json
+          deploy_service second-service service2-task-family ${{ secrets.ECR_REGISTRY }}/service_two:${{ env.COMMIT_SHORT_SHA }} service2-task-def.json $TG_SERVICE2 service2-container 8081
         fi
         if [ "${{ inputs.deploy_service3 }}" == "true" ]; then
-          deploy_service third-service service3-task-family ${{ secrets.ECR_REGISTRY }}/service_three:${{ env.COMMIT_SHORT_SHA }} service3-task-def.json
+          deploy_service third-service service3-task-family ${{ secrets.ECR_REGISTRY }}/service_three:${{ env.COMMIT_SHORT_SHA }} service3-task-def.json $TG_SERVICE3 service3-container 8082
         fi
