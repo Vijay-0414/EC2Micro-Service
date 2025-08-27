@@ -20,9 +20,9 @@ jobs:
     env:
       CLUSTER_NAME: Fargate_Micro_Cluster
       SUBNETS_ALB: "subnet-02cad20bf83afac11 subnet-0a49baf0fd1f54dba"
-      SUBNETS_ECS: '["subnet-02cad20bf83afac11","subnet-0a49baf0fd1f54dba"]'
+      SUBNETS_ECS: "subnet-02cad20bf83afac11,subnet-0a49baf0fd1f54dba"
       SECURITY_GROUPS: sg-0abb4251606ddb157
-      SECURITY_GROUPS_ECS: '["sg-0abb4251606ddb157"]'
+      SECURITY_GROUPS_ECS: "sg-0abb4251606ddb157"
       VPC_ID: vpc-0a46ad5e7ce944239 
       PORT_SERVICE1: 8080
       PORT_SERVICE2: 8081
@@ -204,7 +204,7 @@ jobs:
               --task-definition $TASK_DEF_ARN \
               --desired-count 1 \
               --launch-type FARGATE \
-              --network-configuration "awsvpcConfiguration={\"subnets\": $SUBNETS_ECS, \"securityGroups\": $SECURITY_GROUPS_ECS, assignPublicIp: ENABLED }"\
+              --network-configuration "awsvpcConfiguration={subnets=[$SUBNETS_ECS],securityGroups=[$SECURITY_GROUPS_ECS],assignPublicIp=ENABLED }"\
               --load-balancers "targetGroupArn=$TG_ARN,containerName=$CONTAINER_NAME,containerPort=$CONTAINER_PORT"
           else
             echo "Updating ECS service..."
