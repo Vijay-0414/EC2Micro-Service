@@ -19,7 +19,8 @@ jobs:
 
     env:
       CLUSTER_NAME: Fargate_Micro_Cluster
-      SUBNETS: "subnet-02cad20bf83afac11,subnet-0a49baf0fd1f54dba"
+      SUBNETS_ALB: "subnet-02cad20bf83afac11 subnet-0a49baf0fd1f54dba"
+      SUBNETS_ECS: "subnet-02cad20bf83afac11,subnet-0a49baf0fd1f54dba"
       SECURITY_GROUPS: sg-0abb4251606ddb157
       VPC_ID: vpc-0a46ad5e7ce944239 
       PORT_SERVICE1: 8080
@@ -115,7 +116,7 @@ jobs:
         if [ "$ALB_ARN" = "MISSING" ]; then
           echo "Creating ALB..."
           ALB_ARN=$(aws elbv2 create-load-balancer --name $ALB_NAME \
-            --subnets ${SUBNETS} --security-groups ${SECURITY_GROUPS} \
+            --subnets ${SUBNETS_ALB} --security-groups ${SECURITY_GROUPS} \
             --scheme internet-facing --type application \
             --query 'LoadBalancers[0].LoadBalancerArn' --output text)
         fi
@@ -202,7 +203,7 @@ jobs:
               --task-definition $TASK_DEF_ARN \
               --desired-count 1 \
               --launch-type FARGATE \
-              --network-configuration "awsvpcConfiguration={subnets=${SUBNETS},securityGroups=[${SECURITY_GROUPS}],assignPublicIp=ENABLED}" \
+              --network-configuration "awsvpcConfiguration={subnets=$SUBNETS_ECS,securityGroups=[${SECURITY_GROUPS}],assignPublicIp=ENABLED}" \
               --load-balancers "targetGroupArn=$TG_ARN,containerName=$CONTAINER_NAME,containerPort=$CONTAINER_PORT"
           else
             echo "Updating ECS service..."
