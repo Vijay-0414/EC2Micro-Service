@@ -9,7 +9,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 public class HelloController {
     @GetMapping("/hello")
     public String hello() {
-        return "Wednesday Fargate Deployment for SERVICE TWO";
+        return "Wednesday Fargate Deployment for SERVICE TWO... Updation Checking...";
     }
 }
 
