@@ -143,19 +143,17 @@ jobs:
         create_tg TG-Service2 $PORT_SERVICE2
         create_tg TG-Service3 $PORT_SERVICE3
 
-    # Create Listener on ALB port 80 if not exists
     - name: Create ALB Listener
       run: |
         LISTENER_ARN=$(aws elbv2 describe-listeners --load-balancer-arn $ALB_ARN --query 'Listeners[?Port==`80`].ListenerArn' --output text)
         if [ -z "$LISTENER_ARN" ]; then
           LISTENER_ARN=$(aws elbv2 create-listener --load-balancer-arn $ALB_ARN \
             --protocol HTTP --port 80 \
-            --default-actions Type=forward,TargetGroupArn=$TG_Service1 \
+            --default-actions Type=forward,TargetGroupArn=${{ env.TG-Service1 }} \
             --query 'Listeners[0].ListenerArn' --output text)
         fi
         echo "LISTENER_ARN=$LISTENER_ARN" >> $GITHUB_ENV
 
-    # Add path-based rules for services
     - name: Add ALB Listener Rules
       run: |
         add_rule() {
@@ -167,6 +165,7 @@ jobs:
             --conditions Field=path-pattern,Values="$PATH_PATTERN" \
             --actions Type=forward,TargetGroupArn=$TG_ARN
         }
+
         add_rule "/service1/*" ${{ env.TG-Service1 }} 10
         add_rule "/service2/*" ${{ env.TG-Service2 }} 20
         add_rule "/service3/*" ${{ env.TG-Service3 }} 30
