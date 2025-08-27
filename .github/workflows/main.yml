@@ -42,12 +42,33 @@ jobs:
         calculatedSha=$(git rev-parse --short ${{ github.sha }})
         echo "COMMIT_SHORT_SHA=$calculatedSha" >> $GITHUB_ENV
 
+    - name: Github Workspace
+      run: echo ${{ github.workspace }}
+
+    - name: Confirm git commit SHA output
+      run: echo ${{ env.COMMIT_SHORT_SHA }}
+
+    # TEST + BUILD ONLY SELECTED SERVICES
+    - name: Test & build selected services
+      run: |
+        if [ "${{ inputs.deploy_service1 }}" == "true" ]; then
+          cd service-1 && mvn test && mvn package -DskipTests && cd ..
+        fi
+        if [ "${{ inputs.deploy_service2 }}" == "true" ]; then
+          cd service-2 && mvn test && mvn package -DskipTests && cd ..
+        fi
+        if [ "${{ inputs.deploy_service3 }}" == "true" ]; then
+          cd service-3 && mvn test && mvn package -DskipTests && cd ..
+        fi
+
+
     - name: Configure AWS Credentials
       uses: aws-actions/configure-aws-credentials@v2
       with:
         aws-access-key-id: ${{secrets.AWS_ACCESS_KEY}}
         aws-secret-access-key: ${{secrets.AWS_SECRET_ACCESS_KEY}}
         aws-region: ${{secrets.AWS_REGION}}
+
 
     - name: Login to Amazon ECR
       id: login-ecr
