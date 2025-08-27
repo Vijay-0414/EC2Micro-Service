@@ -9,7 +9,12 @@ import org.springframework.web.bind.annotation.RequestMapping;
 public class HelloController {
     @GetMapping("/hello")
     public String hello() {
-        return "Wednesday Fargate Deployment for SERVICE ONE";
+        return "Wednesday Fargate Deployment for SERVICE ONE... UPDATED";
+    }
+
+    @GetMapping("/hello2")
+    public String hello() {
+        return "SERVICE ONE... Second MAPPING...";
     }
 }
 
