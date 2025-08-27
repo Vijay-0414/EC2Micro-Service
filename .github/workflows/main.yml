@@ -19,7 +19,7 @@ jobs:
 
     env:
       CLUSTER_NAME: Fargate_Micro_Cluster
-      SUBNETS: subnet-02cad20bf83afac11,subnet-0a49baf0fd1f54dba
+      SUBNETS: "subnet-02cad20bf83afac11 subnet-0a49baf0fd1f54dba"
       SECURITY_GROUPS: sg-0abb4251606ddb157
       VPC_ID: vpc-0a46ad5e7ce944239 
       PORT_SERVICE1: 8080
