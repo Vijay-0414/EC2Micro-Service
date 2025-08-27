@@ -123,6 +123,11 @@ jobs:
           TASK_DEF_ARN=$(aws ecs register-task-definition --cli-input-json file://final-task-def.json \
             --query 'taskDefinition.taskDefinitionArn' --output text)
 
+          OLD_REVISIONS=$(aws ecs list-task-definitions --family-prefix $TASK_NAME --status ACTIVE --sort DESC --query 'taskDefinitionArns[1:]' --output text)
+          for TD_ARN in $OLD_REVISIONS; do
+            aws ecs deregister-task-definition --task-definition $TD_ARN
+          done
+          
           SERVICE_STATUS=$(aws ecs describe-services --cluster $CLUSTER_NAME --services $SERVICE_NAME --query "services[0].status" --output text 2>/dev/null || echo "MISSING")
 
           if [ "$SERVICE_STATUS" == "MISSING" ] || [ "$SERVICE_STATUS" == "None" ]; then
