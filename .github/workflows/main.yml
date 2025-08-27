@@ -72,7 +72,7 @@ jobs:
         fi
         if [ "${{ inputs.deploy_service3 }}" == "true" ]; then
           build_push service_three service-3
-        fi
+        fi 
 
     - name: Create ECS cluster if not exists
       run: |
