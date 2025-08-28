@@ -138,12 +138,12 @@ jobs:
               --query 'TargetGroups[0].TargetGroupArn' --output text)
           fi
           echo "$TG_NAME ARN: $TG_ARN"
-          echo "$TG_NAME=$TG_ARN" >> $GITHUB_ENV
+          echo "$TG_ENV_NAME=$TG_ARN" >> $GITHUB_ENV
         }
 
-        create_tg TG-Service1 $PORT_SERVICE1
-        create_tg TG-Service2 $PORT_SERVICE2
-        create_tg TG-Service3 $PORT_SERVICE3
+        create_tg TG-Service1 $PORT_SERVICE1 TG_SERVICE1
+        create_tg TG-Service2 $PORT_SERVICE2 TG_SERVICE2
+        create_tg TG-Service3 $PORT_SERVICE3 TG_SERVICE3
 
     - name: Create ALB Listener
       run: |
@@ -151,7 +151,7 @@ jobs:
         if [ -z "$LISTENER_ARN" ]; then
           LISTENER_ARN=$(aws elbv2 create-listener --load-balancer-arn $ALB_ARN \
             --protocol HTTP --port 80 \
-            --default-actions Type=forward,TargetGroupArn=${{ env.TG-Service1 }} \
+            --default-actions Type=forward,TargetGroupArn=${{ env.TG_SERVICE1 }} \
             --query 'Listeners[0].ListenerArn' --output text)
         fi
         echo "LISTENER_ARN=$LISTENER_ARN" >> $GITHUB_ENV
@@ -168,9 +168,9 @@ jobs:
             --actions Type=forward,TargetGroupArn=$TG_ARN
         }
 
-        add_rule "/service1/*" ${{ env.TG-Service1 }} 10
-        add_rule "/service2/*" ${{ env.TG-Service2 }} 20
-        add_rule "/service3/*" ${{ env.TG-Service3 }} 30
+        add_rule "/service1/*" ${{ env.TG_SERVICE1 }} 10
+        add_rule "/service2/*" ${{ env.TG_Service2 }} 20
+        add_rule "/service3/*" ${{ env.TG_Service3 }} 30
           
     - name: Deploy Services
       run: |
@@ -217,11 +217,11 @@ jobs:
         }
 
         if [ "${{ inputs.deploy_service1 }}" == "true" ]; then
-          deploy_service first-service service1-task-family ${{ secrets.ECR_REGISTRY }}/service_one:${{ env.COMMIT_SHORT_SHA }} service1-task-def.json ${{ env.TG-Service1 }} service1-container $PORT_SERVICE1
+          deploy_service first-service service1-task-family ${{ secrets.ECR_REGISTRY }}/service_one:${{ env.COMMIT_SHORT_SHA }} service1-task-def.json ${{ env.TG_Service1 }} service1-container $PORT_SERVICE1
         fi
         if [ "${{ inputs.deploy_service2 }}" == "true" ]; then
-          deploy_service second-service service2-task-family ${{ secrets.ECR_REGISTRY }}/service_two:${{ env.COMMIT_SHORT_SHA }} service2-task-def.json ${{ env.TG-Service2 }} service2-container $PORT_SERVICE2
+          deploy_service second-service service2-task-family ${{ secrets.ECR_REGISTRY }}/service_two:${{ env.COMMIT_SHORT_SHA }} service2-task-def.json ${{ env.TG_Service2 }} service2-container $PORT_SERVICE2
         fi
         if [ "${{ inputs.deploy_service3 }}" == "true" ]; then
-          deploy_service third-service service3-task-family ${{ secrets.ECR_REGISTRY }}/service_three:${{ env.COMMIT_SHORT_SHA }} service3-task-def.json ${{ env.TG-Service3 }} service3-container $PORT_SERVICE3
+          deploy_service third-service service3-task-family ${{ secrets.ECR_REGISTRY }}/service_three:${{ env.COMMIT_SHORT_SHA }} service3-task-def.json ${{ env.TG_Service3 }} service3-container $PORT_SERVICE3
         fi
