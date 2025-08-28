@@ -20,7 +20,7 @@ public class HelloController {
 
     @GetMapping("/hello")
     public String hello() {
-        return "Thursday Fargate Deployment for SERVICE ONE... UPDATED VIJAYAPERUMAL....Domain name checking...";
+        return "Contect Checkking in browser";
     }
 
     @GetMapping("/hello2")
