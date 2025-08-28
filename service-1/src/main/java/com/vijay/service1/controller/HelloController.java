@@ -10,7 +10,7 @@ public class HelloController {
 
     @GetMapping
     public String root() {
-        return "Service1 root endpoint is alive!";
+        return "Service1 root endpoint is alive!...VIJAYAPERUMAL";
     }
 
     @GetMapping("/health")
@@ -20,11 +20,11 @@ public class HelloController {
 
     @GetMapping("/hello")
     public String hello() {
-        return "Thursday Fargate Deployment for SERVICE ONE... UPDATED";
+        return "Thursday Fargate Deployment for SERVICE ONE... UPDATED VIJAYAPERUMAL";
     }
 
     @GetMapping("/hello2")
     public String hello2() {
-        return "SERVICE ONE... Second MAPPING...";
+        return "SERVICE ONE... Second MAPPING...VIJAYAPERUMAL";
     }
 }
