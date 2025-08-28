@@ -8,7 +8,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 @RequestMapping("/service3") 
 public class HelloController {
 
-    @GetMapping
+    @GetMapping("/")
     public String root() {
         return "Service3 root endpoint is alive!.....VIJAYAPERUMAL";
     }
