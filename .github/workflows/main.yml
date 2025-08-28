@@ -130,6 +130,7 @@ jobs:
         create_tg() {
           TG_NAME=$1
           TG_PORT=$2
+          TG_ENV_NAME=$3
           TG_ARN=$(aws elbv2 describe-target-groups --names $TG_NAME --query 'TargetGroups[0].TargetGroupArn' --output text 2>/dev/null || echo "MISSING")
           if [ "$TG_ARN" = "MISSING" ]; then
             TG_ARN=$(aws elbv2 create-target-group --name $TG_NAME \
@@ -169,8 +170,8 @@ jobs:
         }
 
         add_rule "/service1/*" ${{ env.TG_SERVICE1 }} 10
-        add_rule "/service2/*" ${{ env.TG_Service2 }} 20
-        add_rule "/service3/*" ${{ env.TG_Service3 }} 30
+        add_rule "/service2/*" ${{ env.TG_SERVICE2 }} 20
+        add_rule "/service3/*" ${{ env.TG_SERVICE3 }} 30
           
     - name: Deploy Services
       run: |
