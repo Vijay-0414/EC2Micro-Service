@@ -10,21 +10,21 @@ public class HelloController {
 
     @GetMapping("/")
     public String root() {
-        return "Service1 root endpoint is alive!...VIJAYAPERUMAL... Domain name checking...";
+        return "Root Method from Service1";
     }
 
     @GetMapping("/health")
     public String health() {
-        return "OK from s1";
+        return "Health Method from Service1";
     }
 
     @GetMapping("/hello")
     public String hello() {
-        return "Contect Checkking in browser";
+        return "Hello Method from Service1";
     }
 
     @GetMapping("/hello2")
     public String hello2() {
-        return "SERVICE ONE... Second MAPPING...VIJAYAPERUMAL...Domain name checking...";
+        return "Hello2 Method from Service1";
     }
 }
