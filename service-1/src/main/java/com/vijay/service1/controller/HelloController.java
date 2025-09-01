@@ -10,21 +10,21 @@ public class HelloController {
 
     @GetMapping("/")
     public String root() {
-        return "Root Method from Service1";
+        return "Root Method from Service1...Monday";
     }
 
     @GetMapping("/health")
     public String health() {
-        return "Health Method from Service1";
+        return "Health Method from Service1...Monday";
     }
 
     @GetMapping("/hello")
     public String hello() {
-        return "Hello Method from Service1";
+        return "Hello Method from Service1...Monday";
     }
 
     @GetMapping("/hello2")
     public String hello2() {
-        return "Hello2 Method from Service1";
+        return "Hello2 Method from Service1...Monday";
     }
 }
