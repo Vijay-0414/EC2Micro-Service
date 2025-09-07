@@ -20,7 +20,7 @@ public class HelloController {
 
     @GetMapping("/hello")
     public String hello() {
-        return "Hello Method from Service1";
+        return "Sunday Completed...";
     }
 
     @GetMapping("/hello2")
