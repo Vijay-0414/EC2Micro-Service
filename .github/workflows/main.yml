@@ -19,11 +19,11 @@ jobs:
 
     env:
       CLUSTER_NAME: Fargate_Micro_Cluster
-      SUBNETS_ALB: "subnet-02cad20bf83afac11 subnet-0a49baf0fd1f54dba"
-      SUBNETS_ECS: "subnet-02cad20bf83afac11,subnet-0a49baf0fd1f54dba"
-      SECURITY_GROUPS: sg-0abb4251606ddb157
-      SECURITY_GROUPS_ECS: "sg-0abb4251606ddb157"
-      VPC_ID: vpc-0a46ad5e7ce944239 
+      VPC_ID: ${{ secrets.AWS_VPC_ID }}
+      SUBNETS_ALB: ${{ secrets.AWS_SUBNETS_ALB }}   
+      SUBNETS_ECS: ${{ secrets.AWS_SUBNETS_ECS }}   
+      SECURITY_GROUPS: ${{ secrets.AWS_SG_ALB }}
+      SECURITY_GROUPS_ECS: ${{ secrets.AWS_SG_ECS }}
       PORT_SERVICE1: 8080
       PORT_SERVICE2: 8081
       PORT_SERVICE3: 8082
