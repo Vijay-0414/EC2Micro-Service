@@ -16,6 +16,7 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    environment: prod
 
     env:
       CLUSTER_NAME: Fargate_Micro_Cluster
