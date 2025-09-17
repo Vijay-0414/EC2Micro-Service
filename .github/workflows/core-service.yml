@@ -1,0 +1,131 @@
+name: Core-Services Deployment
+
+on:
+  workflow_dispatch:
+    inputs:
+      deploy_apartment-service:
+        type: boolean
+        default: false
+      deploy_homeowner-service:
+        type: boolean
+        default: false
+      deploy_marketplace-service:
+        type: boolean
+        default: false
+      deploy_payment2-service:
+        type: boolean
+        default: false
+      deploy_registration-service:
+        type: boolean
+        default: false
+      deploy_smallbiz-service:
+        type: boolean
+        default: false
+      deploy_socialmedia-service:
+        type: boolean
+        default: false
+      deploy_stripepayment-service:
+        type: boolean
+        default: false
+
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest    
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v3
+
+    - name: Set up Java
+      uses: actions/setup-java@v3
+      with:
+        distribution: 'temurin'
+        java-version: '17'
+
+    - name: Set short git commit SHA
+      id: vars
+      run: |
+        calculatedSha=$(git rev-parse --short ${{ github.sha }})
+        echo "COMMIT_SHORT_SHA=$calculatedSha" >> $GITHUB_ENV
+
+    - name: Github Workspace
+      run: echo ${{ github.workspace }}
+
+    - name: Confirm git commit SHA output
+      run: echo ${{ env.COMMIT_SHORT_SHA }}
+
+    # TEST + BUILD ONLY SELECTED SERVICES
+    - name: Test & build selected services
+      run: |
+        if [ "${{ inputs.deploy_homeowner-service }}" == "true" ]; then
+          cd core-services/homeowner-service && mvn test && mvn package -DskipTests && cd ../../..
+        fi
+        if [ "${{ inputs.deploy_apartment-service }}" == "true" ]; then
+          cd core-services/apartment-service && mvn test && mvn package -DskipTests && cd ../../..
+        fi
+        if [ "${{ inputs.deploy_marketplace-service }}" == "true" ]; then
+          cd core-services/marketplace-service && mvn test && mvn package -DskipTests && cd ../../..
+        fi
+        if [ "${{ inputs.deploy_payment2-service }}" == "true" ]; then
+          cd core-services/payment2-service && mvn test && mvn package -DskipTests && cd ../../..
+        fi
+        if [ "${{ inputs.deploy_registration-service }}" == "true" ]; then
+          cd core-services/registration-service && mvn test && mvn package -DskipTests && cd ../../..
+        fi
+        if [ "${{ inputs.deploy_smallbiz-service }}" == "true" ]; then
+          cd core-services/smallbiz-service && mvn test && mvn package -DskipTests && cd ../../..
+        fi
+        if [ "${{ inputs.deploy_socialmedia-service }}" == "true" ]; then
+          cd core-services/socialmedia-service && mvn test && mvn package -DskipTests && cd ../../..
+        fi
+        if [ "${{ inputs.deploy_stripepayment-service }}" == "true" ]; then
+          cd core-services/stripepayment-service && mvn test && mvn package -DskipTests && cd ../../..
+        fi
+    - name: Configure AWS Credentials
+      uses: aws-actions/configure-aws-credentials@v2
+      with:
+        aws-access-key-id: ${{secrets.AWS_ACCESS_KEY}}
+        aws-secret-access-key: ${{secrets.AWS_SECRET_ACCESS_KEY}}
+        aws-region: ${{secrets.AWS_REGION}}
+
+
+    - name: Login to Amazon ECR
+      id: login-ecr
+      uses: aws-actions/amazon-ecr-login@v2
+          
+    - name: Build and Push Docker Images
+      run: |  
+        build_push() {
+          local SERVICE=$1
+          local SERVICE_PATH=$2
+          docker build -t ${{ secrets.ECR_REGISTRY }}/$SERVICE:${{ env.COMMIT_SHORT_SHA }} $SERVICE_PATH
+          docker push ${{ secrets.ECR_REGISTRY }}/$SERVICE:${{ env.COMMIT_SHORT_SHA }}
+          docker tag ${{ secrets.ECR_REGISTRY }}/$SERVICE:${{ env.COMMIT_SHORT_SHA }} ${{ secrets.ECR_REGISTRY }}/$SERVICE:latest
+          docker push ${{ secrets.ECR_REGISTRY }}/$SERVICE:latest        
+        }
+
+        if [ "${{ inputs.deploy_homeowner-service }}" == "true" ]; then
+          build_push homeowner-service core-services/homeowner-service
+        fi
+        if [ "${{ inputs.deploy_apartment-service }}" == "true" ]; then
+          build_push apartment-service core-services/apartment-service
+        fi
+        if [ "${{ inputs.deploy_marketplace-service }}" == "true" ]; then
+          build_push marketplace-service core-services/marketplace-service
+        fi
+        if [ "${{ inputs.deploy_payment2-service }}" == "true" ]; then
+          build_push payment2-service core-services/payment2-service
+        fi
+        if [ "${{ inputs.deploy_registration-service }}" == "true" ]; then
+          build_push registration-service core-services/registration-service
+        fi
+        if [ "${{ inputs.deploy_smallbiz-service }}" == "true" ]; then
+          build_push smallbiz-service core-services/smallbiz-service
+        fi
+        if [ "${{ inputs.deploy_socialmedia-service }}" == "true" ]; then
+          build_push socialmedia-service core-services/socialmedia-service
+        fi
+        if [ "${{ inputs.deploy_stripepayment-service }}" == "true" ]; then
+          build_push stripepayment-service core-services/stripepayment-service
+        fi
