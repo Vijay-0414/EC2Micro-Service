@@ -1,0 +1,114 @@
+name: App-Services Deployment
+
+on:
+  workflow_dispatch:
+    inputs:
+      deploy_api-gateway:
+        type: boolean
+        default: false
+      deploy_apartment-app-service:
+        type: boolean
+        default: false
+      deploy_homeowner-app-service:
+        type: boolean
+        default: false
+      deploy_marketplace-app-service:
+        type: boolean
+        default: false
+      deploy_payment-service:
+        type: boolean
+        default: false
+      deploy_smallbiz-app-service:
+        type: boolean
+        default: false
+
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest    
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v3
+
+    - name: Set up Java
+      uses: actions/setup-java@v3
+      with:
+        distribution: 'temurin'
+        java-version: '17'
+
+    - name: Set short git commit SHA
+      id: vars
+      run: |
+        calculatedSha=$(git rev-parse --short ${{ github.sha }})
+        echo "COMMIT_SHORT_SHA=$calculatedSha" >> $GITHUB_ENV
+
+    - name: Github Workspace
+      run: echo ${{ github.workspace }}
+
+    - name: Confirm git commit SHA output
+      run: echo ${{ env.COMMIT_SHORT_SHA }}
+
+    # TEST + BUILD ONLY SELECTED SERVICES
+    - name: Test & build selected services
+      run: |
+        if [ "${{ inputs.deploy_api-gateway }}" == "true" ]; then
+          cd api-gateway && mvn test && mvn package -DskipTests && cd ..
+        fi
+        if [ "${{ inputs.deploy_apartment-app-service }}" == "true" ]; then
+          cd app-services/apartment-app-service && mvn test && mvn package -DskipTests && cd ../../..
+        fi
+        if [ "${{ inputs.deploy_homeowner-app-service }}" == "true" ]; then
+          cd app-services/homeowner-app-service && mvn test && mvn package -DskipTests && cd ../../..
+        fi
+        if [ "${{ inputs.deploy_marketplace-app-service }}" == "true" ]; then
+          cd app-services/marketplace-app-service && mvn test && mvn package -DskipTests && cd ../../..
+        fi
+        if [ "${{ inputs.deploy_payment-service }}" == "true" ]; then
+          cd app-services/payment-service && mvn test && mvn package -DskipTests && cd ../../..
+        fi
+        if [ "${{ inputs.deploy_smallbiz-app-service }}" == "true" ]; then
+          cd app-services/smallbiz-app-service && mvn test && mvn package -DskipTests && cd ../../..
+        fi
+
+    - name: Configure AWS Credentials
+      uses: aws-actions/configure-aws-credentials@v2
+      with:
+        aws-access-key-id: ${{secrets.AWS_ACCESS_KEY}}
+        aws-secret-access-key: ${{secrets.AWS_SECRET_ACCESS_KEY}}
+        aws-region: ${{secrets.AWS_REGION}}
+
+
+    - name: Login to Amazon ECR
+      id: login-ecr
+      uses: aws-actions/amazon-ecr-login@v2
+          
+    - name: Build and Push Docker Images
+      run: |  
+        build_push() {
+          local SERVICE=$1
+          local SERVICE_PATH=$2
+          docker build -t ${{ secrets.ECR_REGISTRY }}/$SERVICE:${{ env.COMMIT_SHORT_SHA }} $SERVICE_PATH
+          docker push ${{ secrets.ECR_REGISTRY }}/$SERVICE:${{ env.COMMIT_SHORT_SHA }}
+          docker tag ${{ secrets.ECR_REGISTRY }}/$SERVICE:${{ env.COMMIT_SHORT_SHA }} ${{ secrets.ECR_REGISTRY }}/$SERVICE:latest
+          docker push ${{ secrets.ECR_REGISTRY }}/$SERVICE:latest        
+        }
+
+        if [ "${{ inputs.deploy_api-gateway }}" == "true" ]; then
+          build_push api-gateway api-gateway
+        fi
+        if [ "${{ inputs.deploy_apartment-app-service }}" == "true" ]; then
+          build_push apartment-app-service app-services/apartment-app-service
+        fi
+        if [ "${{ inputs.deploy_homeowner-app-service }}" == "true" ]; then
+          build_push homeowner-app-service app-services/homeowner-app-service
+        fi
+        if [ "${{ inputs.deploy_marketplace-app-service }}" == "true" ]; then
+          build_push marketplace-app-service app-services/marketplace-app-service
+        fi
+        if [ "${{ inputs.deploy_payment-service }}" == "true" ]; then
+          build_push payment-service app-services/payment-service
+        fi
+        if [ "${{ inputs.deploy_smallbiz-app-service }}" == "true" ]; then
+          build_push smallbiz-app-service app-services/smallbiz-app-service
+        fi
