@@ -1,0 +1,132 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: ECS Fargate Cluster 
+
+Parameters:
+  VpcId:
+    Type: String
+    Default: vpc-0a46ad5e7ce944239
+  SubnetOne:
+    Type: String
+    Default: subnet-0a49baf0fd1f54dba
+  SubnetTwo:
+    Type: String
+    Default: subnet-02cad20bf83afac11
+  SecurityGroup:
+    Type: String
+    Default: sg-0abb4251606ddb157
+
+Resources:
+  ECSCluster:
+    Type: AWS::ECS::Cluster
+    Properties:
+      ClusterName: demo-cluster
+
+  TaskExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: ecsTaskExecutionRole
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
+
+  # ---------------- 1. Service1 ----------------
+  Service1Definition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: service1-task-family
+      Cpu: 256
+      Memory: 512
+      NetworkMode: awsvpc
+      RequiresCompatibilities: [FARGATE]
+      ExecutionRoleArn: !GetAtt TaskExecutionRole.Arn
+      ContainerDefinitions:
+        - Name: service1-container
+          Image: 720628977237.dkr.ecr.ap-south-1.amazonaws.com/service_one:latest
+          PortMappings:
+            - ContainerPort: 8080
+
+  Service1Service:
+    Type: AWS::ECS::Service
+    Properties:
+      Cluster: !Ref ECSCluster
+      ServiceName: service1-service
+      TaskDefinition: !Ref Service1TaskDefinition
+      DesiredCount: 1
+      LaunchType: FARGATE
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: ENABLED
+          SecurityGroups: [!Ref SecurityGroup]
+          Subnets: [!Ref SubnetOne, !Ref SubnetTwo]
+
+  # ---------------- 2. Service2 ----------------
+  Service2Definition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: service2-task-family
+      Cpu: 256
+      Memory: 512
+      NetworkMode: awsvpc
+      RequiresCompatibilities: [FARGATE]
+      ExecutionRoleArn: !GetAtt TaskExecutionRole.Arn
+      ContainerDefinitions:
+        - Name: service2-container
+          Image: 720628977237.dkr.ecr.ap-south-1.amazonaws.com/service_two:latest
+          PortMappings:
+            - ContainerPort: 8081
+
+  Service2Service:
+    Type: AWS::ECS::Service
+    Properties:
+      Cluster: !Ref ECSCluster
+      ServiceName: service2-service
+      TaskDefinition: !Ref Service2TaskDefinition
+      DesiredCount: 1
+      LaunchType: FARGATE
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: ENABLED
+          SecurityGroups: [!Ref SecurityGroup]
+          Subnets: [!Ref SubnetOne, !Ref SubnetTwo]
+          
+  # ---------------- 3. API Gateway ----------------
+  Service3Definition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: service3-task-family
+      Cpu: 256
+      Memory: 512
+      NetworkMode: awsvpc
+      RequiresCompatibilities: [FARGATE]
+      ExecutionRoleArn: !GetAtt TaskExecutionRole.Arn
+      ContainerDefinitions:
+        - Name: service3-container
+          Image: 720628977237.dkr.ecr.ap-south-1.amazonaws.com/service_three:latest
+          PortMappings:
+            - ContainerPort: 8082
+
+  Service3Service:
+    Type: AWS::ECS::Service
+    Properties:
+      Cluster: !Ref ECSCluster
+      ServiceName: service3-service
+      TaskDefinition: !Ref Service3TaskDefinition
+      DesiredCount: 1
+      LaunchType: FARGATE
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: ENABLED
+          SecurityGroups: [!Ref SecurityGroup]
+          Subnets: [!Ref SubnetOne, !Ref SubnetTwo]
+		  
+		  
+Outputs:
+  ECSClusterName:
+    Description: ECS Cluster Name
+    Value: !Ref ECSCluster
