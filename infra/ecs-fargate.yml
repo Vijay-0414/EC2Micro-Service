@@ -1,25 +1,29 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: ECS Fargate Cluster 
+Description: ECS Fargate Cluster for 3 Microservices
 
 Parameters:
   VpcId:
     Type: String
-    Default: vpc-0a46ad5e7ce944239
   SubnetOne:
     Type: String
-    Default: subnet-0a49baf0fd1f54dba
   SubnetTwo:
     Type: String
-    Default: subnet-02cad20bf83afac11
   SecurityGroup:
     Type: String
-    Default: sg-0abb4251606ddb157
+
+  # Docker image URIs for each service
+  Service1Image:
+    Type: String
+  Service2Image:
+    Type: String
+  Service3Image:
+    Type: String
 
 Resources:
   ECSCluster:
     Type: AWS::ECS::Cluster
     Properties:
-      ClusterName: demo-cluster
+      ClusterName: microservices-cluster
 
   TaskExecutionRole:
     Type: AWS::IAM::Role
@@ -47,12 +51,14 @@ Resources:
       ExecutionRoleArn: !GetAtt TaskExecutionRole.Arn
       ContainerDefinitions:
         - Name: service1-container
-          Image: 720628977237.dkr.ecr.ap-south-1.amazonaws.com/service_one:latest
+          Image: !Ref Service1Image
           PortMappings:
             - ContainerPort: 8080
+          Essential: true
 
   Service1Service:
     Type: AWS::ECS::Service
+    DependsOn: TaskExecutionRole
     Properties:
       Cluster: !Ref ECSCluster
       ServiceName: service1-service
@@ -64,7 +70,6 @@ Resources:
           AssignPublicIp: ENABLED
           SecurityGroups: [!Ref SecurityGroup]
           Subnets: [!Ref SubnetOne, !Ref SubnetTwo]
-
 
   # ---------------- 2. Service2 ----------------
   Service2TaskDefinition:
@@ -78,12 +83,14 @@ Resources:
       ExecutionRoleArn: !GetAtt TaskExecutionRole.Arn
       ContainerDefinitions:
         - Name: service2-container
-          Image: 720628977237.dkr.ecr.ap-south-1.amazonaws.com/service_two:latest
+          Image: !Ref Service2Image
           PortMappings:
             - ContainerPort: 8081
+          Essential: true
 
   Service2Service:
     Type: AWS::ECS::Service
+    DependsOn: TaskExecutionRole
     Properties:
       Cluster: !Ref ECSCluster
       ServiceName: service2-service
@@ -95,7 +102,7 @@ Resources:
           AssignPublicIp: ENABLED
           SecurityGroups: [!Ref SecurityGroup]
           Subnets: [!Ref SubnetOne, !Ref SubnetTwo]
-          
+
   # ---------------- 3. Service3 ----------------
   Service3TaskDefinition:
     Type: AWS::ECS::TaskDefinition
@@ -108,12 +115,14 @@ Resources:
       ExecutionRoleArn: !GetAtt TaskExecutionRole.Arn
       ContainerDefinitions:
         - Name: service3-container
-          Image: 720628977237.dkr.ecr.ap-south-1.amazonaws.com/service_three:latest
+          Image: !Ref Service3Image
           PortMappings:
             - ContainerPort: 8082
+          Essential: true
 
   Service3Service:
     Type: AWS::ECS::Service
+    DependsOn: TaskExecutionRole
     Properties:
       Cluster: !Ref ECSCluster
       ServiceName: service3-service
@@ -130,3 +139,12 @@ Outputs:
   ECSClusterName:
     Description: ECS Cluster Name
     Value: !Ref ECSCluster
+  Service1ARN:
+    Description: ECS Service 1 ARN
+    Value: !Ref Service1Service
+  Service2ARN:
+    Description: ECS Service 2 ARN
+    Value: !Ref Service2Service
+  Service3ARN:
+    Description: ECS Service 3 ARN
+    Value: !Ref Service3Service
