@@ -95,7 +95,7 @@ Resources:
           SecurityGroups: [!Ref SecurityGroup]
           Subnets: [!Ref SubnetOne, !Ref SubnetTwo]
           
-  # ---------------- 3. API Gateway ----------------
+  # ---------------- 3. Service3 ----------------
   Service3Definition:
     Type: AWS::ECS::TaskDefinition
     Properties:
@@ -123,9 +123,7 @@ Resources:
         AwsvpcConfiguration:
           AssignPublicIp: ENABLED
           SecurityGroups: [!Ref SecurityGroup]
-          Subnets: [!Ref SubnetOne, !Ref SubnetTwo]
-		  
-		  
+          Subnets: [!Ref SubnetOne, !Ref SubnetTwo]		  
 Outputs:
   ECSClusterName:
     Description: ECS Cluster Name
