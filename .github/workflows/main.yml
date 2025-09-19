@@ -106,6 +106,7 @@ jobs:
           --template-file infra/ecs-fargate.yml \
           --stack-name microservices-stack \
           --capabilities CAPABILITY_NAMED_IAM \
+          --no-fail-on-empty-changeset \
           --parameter-overrides \
             Service1Image=${{ secrets.ECR_REGISTRY }}/service_one:${{ env.COMMIT_SHORT_SHA }} \
             Service2Image=${{ secrets.ECR_REGISTRY }}/service_two:${{ env.COMMIT_SHORT_SHA }} \
