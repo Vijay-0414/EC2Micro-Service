@@ -100,3 +100,10 @@ jobs:
           build_push service_three service-3
         fi 
 
+    - name: Deploy CloudFormation stack
+      run: |
+        aws cloudformation deploy \
+          --template-file infra/ecs-fargate.yml \
+          --stack-name microservices-stack \
+          --capabilities CAPABILITY_NAMED_IAM \
+          --no-fail-on-empty-changeset
