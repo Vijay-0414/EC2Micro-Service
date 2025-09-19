@@ -36,7 +36,7 @@ Resources:
         - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
 
   # ---------------- 1. Service1 ----------------
-  Service1Definition:
+  Service1TaskDefinition:
     Type: AWS::ECS::TaskDefinition
     Properties:
       Family: service1-task-family
@@ -66,7 +66,7 @@ Resources:
           Subnets: [!Ref SubnetOne, !Ref SubnetTwo]
 
   # ---------------- 2. Service2 ----------------
-  Service2Definition:
+  Service2TaskDefinition:
     Type: AWS::ECS::TaskDefinition
     Properties:
       Family: service2-task-family
@@ -96,7 +96,7 @@ Resources:
           Subnets: [!Ref SubnetOne, !Ref SubnetTwo]
           
   # ---------------- 3. Service3 ----------------
-  Service3Definition:
+  Service3TaskDefinition:
     Type: AWS::ECS::TaskDefinition
     Properties:
       Family: service3-task-family
