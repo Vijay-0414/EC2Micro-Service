@@ -65,6 +65,7 @@ Resources:
           SecurityGroups: [!Ref SecurityGroup]
           Subnets: [!Ref SubnetOne, !Ref SubnetTwo]
 
+
   # ---------------- 2. Service2 ----------------
   Service2TaskDefinition:
     Type: AWS::ECS::TaskDefinition
