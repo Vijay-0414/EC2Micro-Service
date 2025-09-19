@@ -124,6 +124,7 @@ Resources:
           AssignPublicIp: ENABLED
           SecurityGroups: [!Ref SecurityGroup]
           Subnets: [!Ref SubnetOne, !Ref SubnetTwo]
+
 Outputs:
   ECSClusterName:
     Description: ECS Cluster Name
