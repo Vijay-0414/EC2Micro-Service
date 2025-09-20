@@ -20,11 +20,11 @@ jobs:
 
     env:
       CLUSTER_NAME: Fargate_Micro_Cluster
-      VPC_ID: ${{ secrets.AWS_VPC_ID }}
-      SUBNETS_ALB: ${{ secrets.AWS_SUBNETS_ALB }}   
-      SUBNETS_ECS: ${{ secrets.AWS_SUBNETS_ECS }}   
-      SECURITY_GROUPS: ${{ secrets.AWS_SG_ALB }}
-      SECURITY_GROUPS_ECS: ${{ secrets.AWS_SG_ECS }} 
+      SUBNETS_ALB: "subnet-02cad20bf83afac11 subnet-0a49baf0fd1f54dba"
+      SUBNETS_ECS: "subnet-02cad20bf83afac11,subnet-0a49baf0fd1f54dba"
+      SECURITY_GROUPS: sg-0abb4251606ddb157
+      SECURITY_GROUPS_ECS: "sg-0abb4251606ddb157"
+      VPC_ID: vpc-0a46ad5e7ce944239
 
       PORT_SERVICE1: 8080
       PORT_SERVICE2: 8081
@@ -100,18 +100,130 @@ jobs:
           build_push service_three service-3
         fi 
 
-    - name: Deploy CloudFormation stack
+    - name: Create ECS cluster if not exists
       run: |
-        aws cloudformation deploy \
-          --template-file infra/ecs-fargate.yml \
-          --stack-name microservices-stack \
-          --capabilities CAPABILITY_NAMED_IAM \
-          --no-fail-on-empty-changeset \
-          --parameter-overrides \
-            Service1Image=${{ secrets.ECR_REGISTRY }}/service_one:${{ env.COMMIT_SHORT_SHA }} \
-            Service2Image=${{ secrets.ECR_REGISTRY }}/service_two:${{ env.COMMIT_SHORT_SHA }} \
-            Service3Image=${{ secrets.ECR_REGISTRY }}/service_three:${{ env.COMMIT_SHORT_SHA }} \
-            VpcId=${{ secrets.AWS_VPC_ID }} \
-            SubnetOne=${{ secrets.AWS_SUBNET_ONE }} \
-            SubnetTwo=${{ secrets.AWS_SUBNET_TWO }} \
-            SecurityGroup=${{ secrets.AWS_SG_ECS }}
+        CLUSTER_EXISTS=$(aws ecs describe-clusters --clusters $CLUSTER_NAME --region ${{secrets.AWS_REGION}} --query "clusters[0].status" --output text 2>/dev/null || echo "MISSING")
+        
+        if [ "$CLUSTER_EXISTS" = "MISSING" ] || [ "$CLUSTER_EXISTS" = "INACTIVE" ] || [ "$CLUSTER_EXISTS" = "None" ]; then
+          echo "$CLUSTER_NAME Cluster not found. Creating $CLUSTER_NAME ECS cluster..."
+          aws ecs create-cluster --cluster-name $CLUSTER_NAME --region ${{secrets.AWS_REGION}}
+        else
+          echo "ECS cluster '$CLUSTER_NAME' already exists."
+        fi
+
+    - name: Create ALB
+      run: |
+        ALB_NAME=Fargate-Micro-ALB
+        ALB_ARN=$(aws elbv2 describe-load-balancers --names $ALB_NAME --query 'LoadBalancers[0].LoadBalancerArn' --output text 2>/dev/null || echo "MISSING")
+        if [ "$ALB_ARN" = "MISSING" ]; then
+          echo "Creating ALB..."
+          ALB_ARN=$(aws elbv2 create-load-balancer --name $ALB_NAME \
+            --subnets ${SUBNETS_ALB} --security-groups ${SECURITY_GROUPS} \
+            --scheme internet-facing --type application \
+            --query 'LoadBalancers[0].LoadBalancerArn' --output text)
+        fi
+        echo "ALB ARN: $ALB_ARN"
+        echo "ALB_ARN=$ALB_ARN" >> $GITHUB_ENV
+
+    - name: Create Target Groups
+      run: |
+        create_tg() {
+          TG_NAME=$1
+          TG_PORT=$2
+          TG_ENV_NAME=$3
+          TG_ARN=$(aws elbv2 describe-target-groups --names $TG_NAME --query 'TargetGroups[0].TargetGroupArn' --output text 2>/dev/null || echo "MISSING")
+          if [ "$TG_ARN" = "MISSING" ]; then
+            TG_ARN=$(aws elbv2 create-target-group --name $TG_NAME \
+              --protocol HTTP --port $TG_PORT \
+              --vpc-id ${VPC_ID} --target-type ip \
+              --query 'TargetGroups[0].TargetGroupArn' --output text)
+          fi
+          echo "$TG_NAME ARN: $TG_ARN"
+          echo "$TG_ENV_NAME=$TG_ARN" >> $GITHUB_ENV
+        }
+
+        create_tg TG-Service1 $PORT_SERVICE1 TG_SERVICE1
+        create_tg TG-Service2 $PORT_SERVICE2 TG_SERVICE2
+        create_tg TG-Service3 $PORT_SERVICE3 TG_SERVICE3
+
+    - name: Create ALB Listener
+      run: |
+        LISTENER_ARN=$(aws elbv2 describe-listeners --load-balancer-arn $ALB_ARN --query 'Listeners[?Port==`80`].ListenerArn' --output text)
+        if [ -z "$LISTENER_ARN" ]; then
+          LISTENER_ARN=$(aws elbv2 create-listener --load-balancer-arn $ALB_ARN \
+            --protocol HTTP --port 80 \
+            --default-actions Type=forward,TargetGroupArn=${{ env.TG_SERVICE1 }} \
+            --query 'Listeners[0].ListenerArn' --output text)
+        fi
+        echo "LISTENER_ARN=$LISTENER_ARN" >> $GITHUB_ENV
+
+    - name: Add ALB Listener Rules
+      run: |
+        add_rule() {
+          PATH_PATTERN=$1
+          TG_ARN=$2
+          PRIORITY=$3
+          aws elbv2 create-rule --listener-arn ${{ env.LISTENER_ARN }} \
+            --priority $PRIORITY \
+            --conditions Field=path-pattern,Values="$PATH_PATTERN" \
+            --actions Type=forward,TargetGroupArn=$TG_ARN
+        }
+
+        add_rule "/service1/*" ${{ env.TG_SERVICE1 }} 10
+        add_rule "/service2/*" ${{ env.TG_SERVICE2 }} 20
+        add_rule "/service3/*" ${{ env.TG_SERVICE3 }} 30
+          
+    - name: Deploy Services
+      run: |
+        deploy_service() {
+          local SERVICE_NAME=$1
+          local TASK_NAME=$2
+          local IMAGE=$3
+          local DEF_FILE=$4
+          local TG_ARN=$5
+          local CONTAINER_NAME=$6
+          local CONTAINER_PORT=$7
+
+          echo "Deploying $SERVICE_NAME using image $IMAGE"
+
+          sed "s|REPLACE_ME|$IMAGE|g" ecs-task-definitions/$DEF_FILE > final-task-def.json
+          TASK_DEF_ARN=$(aws ecs register-task-definition --cli-input-json file://final-task-def.json \
+            --query 'taskDefinition.taskDefinitionArn' --output text)
+
+          OLD_REVISIONS=$(aws ecs list-task-definitions --family-prefix $TASK_NAME --status ACTIVE --sort DESC --query 'taskDefinitionArns[1:]' --output text)
+          for TD_ARN in $OLD_REVISIONS; do
+            aws ecs deregister-task-definition --task-definition $TD_ARN
+          done
+          
+          SERVICE_STATUS=$(aws ecs describe-services --cluster $CLUSTER_NAME --services $SERVICE_NAME --query "services[0].status" --output text 2>/dev/null || echo "MISSING")
+
+          if [ "$SERVICE_STATUS" == "MISSING" ] || [ "$SERVICE_STATUS" == "None" ]; then
+            echo "Creating ECS service..."
+            aws ecs create-service \
+              --cluster $CLUSTER_NAME \
+              --service-name $SERVICE_NAME \
+              --task-definition $TASK_DEF_ARN \
+              --desired-count 1 \
+              --launch-type FARGATE \
+              --network-configuration "awsvpcConfiguration={subnets=[${SUBNETS_ECS}],securityGroups=[${SECURITY_GROUPS_ECS}],assignPublicIp=ENABLED}" \
+              --load-balancers "targetGroupArn=$TG_ARN,containerName=$CONTAINER_NAME,containerPort=$CONTAINER_PORT"
+          else
+            echo "Updating ECS service..."
+            aws ecs update-service \
+              --cluster $CLUSTER_NAME \
+              --service $SERVICE_NAME \
+              --task-definition $TASK_DEF_ARN \
+              --force-new-deployment
+          fi
+        }
+
+        if [ "${{ inputs.deploy_service1 }}" == "true" ]; then
+          deploy_service first-service service1-task-family ${{ secrets.ECR_REGISTRY }}/service_one:${{ env.COMMIT_SHORT_SHA }} service1-task-def.json ${{ env.TG_SERVICE1 }} service1-container $PORT_SERVICE1
+        fi
+        if [ "${{ inputs.deploy_service2 }}" == "true" ]; then
+          deploy_service second-service service2-task-family ${{ secrets.ECR_REGISTRY }}/service_two:${{ env.COMMIT_SHORT_SHA }} service2-task-def.json ${{ env.TG_SERVICE2 }} service2-container $PORT_SERVICE2
+        fi
+        if [ "${{ inputs.deploy_service3 }}" == "true" ]; then
+          deploy_service third-service service3-task-family ${{ secrets.ECR_REGISTRY }}/service_three:${{ env.COMMIT_SHORT_SHA }} service3-task-def.json ${{ env.TG_SERVICE3 }} service3-container $PORT_SERVICE3
+        fi
+
